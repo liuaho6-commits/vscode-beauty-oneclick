@@ -12,6 +12,30 @@ Your Code installation appears to be corrupt. Please reinstall.
 
 本项目的 `Install-VSCodeBeautyOneClick.ps1` 在修补 CSS 后会重新计算 hash 并写回 `product.json`，所以不会留下这个提示。如果你手动改了 CSS，请重新运行脚本，或恢复原始 CSS。
 
+## Remote-SSH 报 JSON.parse 错误
+
+现象：
+
+```text
+Could not establish connection to "...": Unexpected token '﻿', "﻿{
+    "n"... is not valid JSON
+```
+
+这通常不是远端 SSH 主机的问题。已确认的一种原因是本机 VS Code 安装目录里的 `resources\app\product.json` 被保存成了 UTF-8 with BOM。Remote-SSH 会直接 `JSON.parse` 这个文件，遇到文件头的 BOM 就会在真正连接远端前失败。
+
+本项目脚本已改为 UTF-8 without BOM 写入 `product.json`、`settings.json` 和 workbench CSS。旧版本脚本造成的问题可以这样修：
+
+```powershell
+$product = Get-ChildItem "$env:LOCALAPPDATA\Programs\Microsoft VS Code" -Recurse -Filter product.json -File | Select-Object -First 1
+$bytes = [IO.File]::ReadAllBytes($product.FullName)
+if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+    Copy-Item -LiteralPath $product.FullName -Destination "$($product.FullName).bak-remove-bom"
+    [IO.File]::WriteAllBytes($product.FullName, $bytes[3..($bytes.Length - 1)])
+}
+```
+
+处理后 reload VS Code window，或完全关闭 VS Code 再打开。
+
 ## 字体仍然不对
 
 先确认三件事：

@@ -34,6 +34,16 @@ function Write-WarnLine {
     Write-Host "[WARN] $Message" -ForegroundColor Yellow
 }
 
+function Write-Utf8NoBom {
+    param(
+        [string]$Path,
+        [string]$Value
+    )
+
+    $encoding = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($Path, $Value, $encoding)
+}
+
 function Resolve-ExistingPath {
     param([string]$Path)
 
@@ -540,7 +550,7 @@ function Configure-TodoTreeRipgrep {
     $settingsPath = Join-Path $settingsDir "settings.json"
     New-Item -ItemType Directory -Path $settingsDir -Force | Out-Null
     if (-not (Test-Path -LiteralPath $settingsPath)) {
-        "{}" | Set-Content -LiteralPath $settingsPath -Encoding UTF8
+        Write-Utf8NoBom -Path $settingsPath -Value "{}"
     }
 
     $raw = Get-Content -LiteralPath $settingsPath -Raw
@@ -561,7 +571,8 @@ function Configure-TodoTreeRipgrep {
     }
 
     Set-ObjectProperty -Object $settings -Name "todo-tree.ripgrep" -Value $rgExe
-    $settings | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $settingsPath -Encoding UTF8
+    $settingsJson = $settings | ConvertTo-Json -Depth 100
+    Write-Utf8NoBom -Path $settingsPath -Value ($settingsJson + [Environment]::NewLine)
     Write-Ok "todo-tree.ripgrep: $rgExe"
 }
 
@@ -798,7 +809,7 @@ $markerEnd
 
         $backup = "$cssPath.bak-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
         Copy-Item -LiteralPath $cssPath -Destination $backup -Force
-        Set-Content -LiteralPath $cssPath -Value $newContent -Encoding UTF8
+        Write-Utf8NoBom -Path $cssPath -Value $newContent
         Write-Ok "Patched CSS. Backup: $backup"
         Update-VSCodeProductChecksum -CssPath $cssPath
     }
@@ -861,7 +872,8 @@ function Update-VSCodeProductChecksum {
     Set-ObjectProperty -Object $product.checksums -Name $relativeKey -Value $newChecksum
     $backup = "$productPath.bak-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
     Copy-Item -LiteralPath $productPath -Destination $backup -Force
-    $product | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $productPath -Encoding UTF8
+    $productJson = $product | ConvertTo-Json -Depth 100
+    Write-Utf8NoBom -Path $productPath -Value ($productJson + [Environment]::NewLine)
     Write-Ok "Updated product checksum: $relativeKey"
 }
 
