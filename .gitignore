@@ -6,6 +6,17 @@ dist/
 *.7z
 *.rar
 
+# Private VS Code profile exports, if placed near the repo for convenience
+/profile/
+/Profile/
+/VSCodeBeautyProfile/
+/vscode-profile/
+/VSCodeBeautySource/
+/source/
+/user-data/
+/extensions/
+/Code/
+
 # Do not commit unrelated private fonts. Public bundled fonts live under fonts/.
 *.ttf
 *.ttc

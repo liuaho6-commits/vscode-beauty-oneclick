@@ -44,7 +44,7 @@ vscode-beauty-oneclick/
     troubleshooting.md
 ```
 
-## 推荐用法：外部 Profile 路径
+## 推荐用法：自动识别外部 Profile
 
 假设你把源机器的 VS Code 数据放在移动硬盘：
 
@@ -54,15 +54,41 @@ E:\VSCodeBeautyProfile\
   extensions\      # 来自源机器 %USERPROFILE%\.vscode\extensions
 ```
 
-在新机器上运行：
+如果仓库和 Profile 是同级目录：
+
+```text
+E:\
+  vscode-beauty-oneclick\
+  VSCodeBeautyProfile\
+    user-data\
+    extensions\
+```
+
+在仓库目录直接运行即可，脚本会自动识别：
+
+```powershell
+.\scripts\Install-VSCodeBeautyOneClick.ps1
+```
+
+脚本会自动使用仓库里的 `fonts/`，所以不需要把字体再塞进 Profile。
+
+自动识别会检查这些明确结构：
+
+- 仓库同级的 `VSCodeBeautyProfile\user-data` 和 `VSCodeBeautyProfile\extensions`
+- 仓库同级的 `profile\user-data` 和 `profile\extensions`
+- 仓库同级的 `VSCodeBeautySource\user-data` 和 `VSCodeBeautySource\extensions`
+- 仓库根目录下的 `user-data` 和 `extensions`
+- 当前执行目录下的 `user-data` 和 `extensions`
+
+如果找到多个候选，脚本会提示你显式传参，而不是猜一个。
+
+也可以手动指定路径：
 
 ```powershell
 .\scripts\Install-VSCodeBeautyOneClick.ps1 `
   -UserDataPath "E:\VSCodeBeautyProfile\user-data" `
   -ExtensionsPath "E:\VSCodeBeautyProfile\extensions"
 ```
-
-脚本会自动使用仓库里的 `fonts/`，所以不需要把字体再塞进 Profile。
 
 如果你有额外字体目录：
 
@@ -75,7 +101,7 @@ E:\VSCodeBeautyProfile\
 
 ## 只安装公共美化基础
 
-没有外部 Profile 时也能运行。它会安装 VS Code、安装仓库字体、修补 workbench CSS、创建快捷方式：
+没有外部 Profile 时也能运行。它会安装 VS Code、安装仓库字体、修补 workbench CSS、创建快捷方式，并跳过用户配置和插件恢复：
 
 ```powershell
 .\scripts\Install-VSCodeBeautyOneClick.ps1

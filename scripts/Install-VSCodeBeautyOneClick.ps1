@@ -323,6 +323,90 @@ function Get-RepositoryFontsRoot {
     return $null
 }
 
+function Get-RepositoryRoot {
+    $scriptLeaf = Split-Path -Leaf $PSScriptRoot
+    if ($scriptLeaf -ieq "scripts") {
+        return (Split-Path -Parent $PSScriptRoot)
+    }
+    return $PSScriptRoot
+}
+
+function Add-UniqueResolvedPath {
+    param(
+        [System.Collections.Generic.List[string]]$List,
+        [string]$Path
+    )
+
+    $resolved = Resolve-ExistingPath -Path $Path
+    if (-not $resolved) {
+        return
+    }
+
+    foreach ($item in $List) {
+        if ($item -ieq $resolved) {
+            return
+        }
+    }
+    $List.Add($resolved) | Out-Null
+}
+
+function Get-AutoProfileRoots {
+    $roots = New-Object System.Collections.Generic.List[string]
+    $repoRoot = Get-RepositoryRoot
+    $repoParent = Split-Path -Parent $repoRoot
+    $location = (Get-Location).Path
+
+    $anchors = @($PSScriptRoot, $repoRoot, $repoParent, $location) |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    $profileNames = @("", "profile", "Profile", "VSCodeBeautyProfile", "vscode-profile", "VSCodeBeautySource", "source", "payload")
+
+    foreach ($anchor in $anchors) {
+        foreach ($name in $profileNames) {
+            $candidate = if ([string]::IsNullOrWhiteSpace($name)) { $anchor } else { Join-Path $anchor $name }
+            Add-UniqueResolvedPath -List $roots -Path $candidate
+        }
+    }
+
+    return $roots
+}
+
+function Get-AutoSourcePath {
+    param(
+        [ValidateSet("UserData", "Extensions")]
+        [string]$Kind
+    )
+
+    $relativePaths = if ($Kind -eq "UserData") {
+        @("user-data", "Code", "AppData\Roaming\Code")
+    }
+    else {
+        @("extensions", ".vscode\extensions")
+    }
+
+    $matches = New-Object System.Collections.Generic.List[string]
+    foreach ($root in Get-AutoProfileRoots) {
+        foreach ($relativePath in $relativePaths) {
+            $candidate = Join-Path $root $relativePath
+            Add-UniqueResolvedPath -List $matches -Path $candidate
+        }
+    }
+
+    if ($matches.Count -eq 0) {
+        return $null
+    }
+
+    if ($matches.Count -gt 1) {
+        Write-WarnLine "Multiple $Kind source candidates were found; pass -${Kind}Path explicitly."
+        foreach ($match in $matches) {
+            Write-WarnLine "  $match"
+        }
+        return $null
+    }
+
+    Write-Ok "Auto-detected ${Kind}: $($matches[0])"
+    return $matches[0]
+}
+
 function Invoke-Robocopy {
     param(
         [string]$Source,
@@ -358,6 +442,9 @@ function Restore-UserData {
             $source = (Resolve-Path -LiteralPath $candidate).Path
         }
     }
+    if (-not $source) {
+        $source = Get-AutoSourcePath -Kind "UserData"
+    }
     if (-not $source -or -not (Test-Path -LiteralPath $source)) {
         Write-WarnLine "No user-data source found."
         return
@@ -392,6 +479,9 @@ function Restore-Extensions {
         if (Test-Path -LiteralPath $candidate) {
             $source = (Resolve-Path -LiteralPath $candidate).Path
         }
+    }
+    if (-not $source) {
+        $source = Get-AutoSourcePath -Kind "Extensions"
     }
     if (-not $source -or -not (Test-Path -LiteralPath $source)) {
         Write-WarnLine "No extension source found."
