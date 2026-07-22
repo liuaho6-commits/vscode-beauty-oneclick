@@ -1,0 +1,54 @@
+# Troubleshooting
+
+## VS Code 提示安装损坏
+
+现象：
+
+```text
+Your Code installation appears to be corrupt. Please reinstall.
+```
+
+原因通常不是 VS Code 真坏了，而是修改了 `workbench.desktop.main.css` 后，没有同步更新 `product.json` 中记录的 SHA256 校验和。
+
+本项目的 `Install-VSCodeBeautyOneClick.ps1` 在修补 CSS 后会重新计算 hash 并写回 `product.json`，所以不会留下这个提示。如果你手动改了 CSS，请重新运行脚本，或恢复原始 CSS。
+
+## 字体仍然不对
+
+先确认三件事：
+
+```powershell
+# 当前用户字体文件是否存在
+Get-ChildItem "$env:LOCALAPPDATA\Microsoft\Windows\Fonts" -Include *.ttf,*.ttc,*.otf -Recurse
+
+# HKCU Fonts 是否注册
+Get-ItemProperty "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts"
+
+# VS Code settings.json 中 editor.fontFamily 是否正确
+Get-Content "$env:APPDATA\Code\User\settings.json"
+```
+
+如果刚安装完字体，已经打开的应用可能不会立刻刷新。脚本会广播 `WM_FONTCHANGE`，但少数应用仍可能需要重新打开。
+
+## Todo Tree 找不到 ripgrep
+
+部分 VS Code 版本或插件组合下，Todo Tree 无法自动定位 VS Code 自带的 `rg.exe`。脚本会在 VS Code 安装目录下查找 `@vscode\ripgrep-*`，并把结果写入：
+
+```json
+{
+  "todo-tree.ripgrep": "..."
+}
+```
+
+如果 VS Code 更新后路径变了，重新运行脚本即可。
+
+## VS Code 更新后样式消失
+
+VS Code 更新会替换安装目录中的 workbench CSS，这是正常现象。更新后重新运行：
+
+```powershell
+.\scripts\Install-VSCodeBeautyOneClick.ps1 -PayloadPath . -SkipVSCodeInstall
+```
+
+## payload 不要提交到 Git
+
+`payload/user-data` 可能包含登录状态、扩展缓存、机器路径、历史记录等私人内容；`payload/fonts` 也可能涉及字体授权。仓库的 `.gitignore` 已经排除了这些目录和字体文件。
