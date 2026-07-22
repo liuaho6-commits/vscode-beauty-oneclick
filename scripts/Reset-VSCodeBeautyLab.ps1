@@ -1,5 +1,6 @@
 param(
-    [string]$PayloadPath = ""
+    [string]$PayloadPath = "",
+    [string]$FontsPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -59,10 +60,60 @@ function Test-IsAdmin {
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Resolve-ExistingPath {
+    param([string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $null
+    }
+    if (Test-Path -LiteralPath $Path) {
+        return (Resolve-Path -LiteralPath $Path).Path
+    }
+    return $null
+}
+
+function Get-RepositoryFontsRoot {
+    $candidates = @(
+        (Join-Path $PSScriptRoot "fonts"),
+        (Join-Path (Split-Path -Parent $PSScriptRoot) "fonts")
+    )
+
+    foreach ($candidate in $candidates) {
+        $resolved = Resolve-ExistingPath -Path $candidate
+        if ($resolved) {
+            return $resolved
+        }
+    }
+
+    return $null
+}
+
+function Get-FontsRoot {
+    $resolved = Resolve-ExistingPath -Path $FontsPath
+    if ($resolved) {
+        return $resolved
+    }
+
+    $resolvedPayload = Resolve-ExistingPath -Path $PayloadPath
+    if ($resolvedPayload) {
+        $candidate = Join-Path $resolvedPayload "fonts"
+        if (Test-Path -LiteralPath $candidate) {
+            return (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+
+    $repoFonts = Get-RepositoryFontsRoot
+    if ($repoFonts) {
+        return $repoFonts
+    }
+
+    throw "Pass -FontsPath, pass -PayloadPath, or place this script in a repository with a fonts folder."
+}
+
 function Get-BeautyFontInventory {
-    $fontRoot = Join-Path $PayloadPath "fonts"
+    $fontRoot = Get-FontsRoot
     if (-not (Test-Path -LiteralPath $fontRoot)) {
-        throw "Font payload not found: $fontRoot"
+        throw "Font source not found: $fontRoot"
     }
 
     $fontFiles = @(Get-ChildItem -LiteralPath $fontRoot -Recurse -File |
@@ -315,19 +366,19 @@ if ([string]::IsNullOrWhiteSpace($PayloadPath)) {
     if (Test-Path -LiteralPath $candidatePayload) {
         $PayloadPath = $candidatePayload
     }
-    else {
-        throw "Pass -PayloadPath, or place this script beside a payload folder."
-    }
 }
 
-$PayloadPath = (Resolve-Path -LiteralPath $PayloadPath).Path
-Write-Host "Payload: $PayloadPath"
+if (-not [string]::IsNullOrWhiteSpace($PayloadPath)) {
+    $PayloadPath = (Resolve-Path -LiteralPath $PayloadPath).Path
+    Write-Host "Payload: $PayloadPath"
+}
 if (-not (Test-IsAdmin)) {
     Write-WarnLine "Not running as Administrator; HKLM and C:\Windows\Fonts cleanup may fail."
 }
 
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$payloadParent = Split-Path -Parent $PayloadPath
+$baseForBackup = if ($PayloadPath) { $PayloadPath } else { $PSScriptRoot }
+$payloadParent = Split-Path -Parent $baseForBackup
 $distRoot = Split-Path -Parent $payloadParent
 if ([string]::IsNullOrWhiteSpace($distRoot)) {
     $distRoot = Join-Path $env:TEMP "VSCodeBeautyLab"

@@ -1,6 +1,9 @@
 param(
     [string]$ArchivePath = "",
     [string]$PayloadPath = "",
+    [string]$UserDataPath = "",
+    [string]$ExtensionsPath = "",
+    [string]$FontsPath = "",
     [switch]$CleanFirst,
     [switch]$SkipVSCodeInstall,
     [switch]$SkipUserData,
@@ -251,7 +254,7 @@ function Get-PayloadRoot {
         $ArchivePath = Find-AdjacentArchive
     }
     if (-not $ArchivePath) {
-        throw "No payload folder or .tar.zst archive was found beside this script."
+        return $null
     }
 
     $resolvedArchive = Resolve-ExistingPath -Path $ArchivePath
@@ -286,6 +289,40 @@ function Get-PayloadRoot {
     return $payloadAfterExtract
 }
 
+function Resolve-OptionalSourcePath {
+    param(
+        [string]$Path,
+        [string]$Name
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $null
+    }
+
+    $resolved = Resolve-ExistingPath -Path $Path
+    if (-not $resolved) {
+        throw "$Name does not exist: $Path"
+    }
+
+    return $resolved
+}
+
+function Get-RepositoryFontsRoot {
+    $candidates = @(
+        (Join-Path $PSScriptRoot "fonts"),
+        (Join-Path (Split-Path -Parent $PSScriptRoot) "fonts")
+    )
+
+    foreach ($candidate in $candidates) {
+        $resolved = Resolve-ExistingPath -Path $candidate
+        if ($resolved) {
+            return $resolved
+        }
+    }
+
+    return $null
+}
+
 function Invoke-Robocopy {
     param(
         [string]$Source,
@@ -314,9 +351,15 @@ function Restore-UserData {
         return
     }
 
-    $source = Join-Path $PayloadRoot "user-data"
-    if (-not (Test-Path -LiteralPath $source)) {
-        Write-WarnLine "No user-data payload found."
+    $source = Resolve-OptionalSourcePath -Path $UserDataPath -Name "UserDataPath"
+    if (-not $source -and $PayloadRoot) {
+        $candidate = Join-Path $PayloadRoot "user-data"
+        if (Test-Path -LiteralPath $candidate) {
+            $source = (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+    if (-not $source -or -not (Test-Path -LiteralPath $source)) {
+        Write-WarnLine "No user-data source found."
         return
     }
 
@@ -343,9 +386,15 @@ function Restore-Extensions {
         return
     }
 
-    $source = Join-Path $PayloadRoot "extensions"
-    if (-not (Test-Path -LiteralPath $source)) {
-        Write-WarnLine "No extension payload found."
+    $source = Resolve-OptionalSourcePath -Path $ExtensionsPath -Name "ExtensionsPath"
+    if (-not $source -and $PayloadRoot) {
+        $candidate = Join-Path $PayloadRoot "extensions"
+        if (Test-Path -LiteralPath $candidate) {
+            $source = (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+    if (-not $source -or -not (Test-Path -LiteralPath $source)) {
+        Write-WarnLine "No extension source found."
         return
     }
 
@@ -476,9 +525,18 @@ function Install-CurrentUserFonts {
         return
     }
 
-    $source = Join-Path $PayloadRoot "fonts"
-    if (-not (Test-Path -LiteralPath $source)) {
-        Write-WarnLine "No font payload found."
+    $source = Resolve-OptionalSourcePath -Path $FontsPath -Name "FontsPath"
+    if (-not $source -and $PayloadRoot) {
+        $candidate = Join-Path $PayloadRoot "fonts"
+        if (Test-Path -LiteralPath $candidate) {
+            $source = (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+    if (-not $source) {
+        $source = Get-RepositoryFontsRoot
+    }
+    if (-not $source -or -not (Test-Path -LiteralPath $source)) {
+        Write-WarnLine "No font source found."
         return
     }
 

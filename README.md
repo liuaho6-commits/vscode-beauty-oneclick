@@ -1,20 +1,39 @@
 # VS Code Beauty One-Click
 
-Windows 上的一键 VS Code 美化迁移脚本。它不是把某台电脑的私密配置直接公开，而是提供一套可复用流程：你自己准备 `payload`，脚本负责安装 VS Code、恢复用户配置和插件、安装当前用户字体、修补 workbench CSS，并处理 VS Code 校验和，避免出现 `Your Code installation appears to be corrupt. Please reinstall.`。
+Windows 上的一键 VS Code 美化迁移脚本。脚本会安装 VS Code、安装仓库内置字体、恢复你指定的 VS Code 用户配置和插件、修补 workbench CSS，并同步更新 VS Code 校验和，避免出现 `Your Code installation appears to be corrupt. Please reinstall.`。
 
-> 本仓库不包含字体文件、VS Code 用户数据、插件缓存或任何私人 payload。请只把脚本和教程开源，自己的 `payload/` 保持本地私有。
+这个仓库的定位是“脚本 + 教程 + 公共字体”，不是私人配置仓库。你的 VS Code 用户数据和插件目录应放在移动硬盘、网盘同步目录或任意外部目录中，通过参数传给脚本，不需要复制到仓库里。
 
-## 适用场景
+## 包含字体
+
+仓库内置当前美化方案需要的字体：
+
+- JetBrains Mono
+- Inter
+- HarmonyOS Sans SC
+
+字体文件位于 `fonts/`。许可证文本位于 `fonts/licenses/`。
+
+重要许可说明：
+
+- JetBrains Mono 使用 SIL Open Font License 1.1。
+- Inter 使用 SIL Open Font License 1.1。
+- HarmonyOS Sans Fonts 使用 HarmonyOS Sans Fonts License Agreement。本项目使用并分发未修改的 HarmonyOS Sans Fonts，并保留其许可证文本。
+
+## 适用环境
 
 - Windows 10/11
 - VS Code User Installer，也就是默认安装到 `%LOCALAPPDATA%\Programs\Microsoft VS Code`
-- 想把一台电脑上的 VS Code 样式、设置、插件和字体迁移到另一台电脑
-- 想在本机模拟新装 VS Code，然后完整测试一键美化流程
+- 需要迁移 VS Code 设置、主题、插件、字体和 workbench CSS 美化
 
-## 目录
+## 仓库结构
 
 ```text
 vscode-beauty-oneclick/
+  fonts/
+    *.ttf
+    *.ttc
+    licenses/
   scripts/
     Install-VSCodeBeautyOneClick.ps1
     Run-OneClick-Beauty.cmd
@@ -23,59 +42,90 @@ vscode-beauty-oneclick/
   docs/
     font-installation.md
     troubleshooting.md
-  payload/                 # 你自己准备，不要提交到 Git
-    user-data/
-    extensions/
-    fonts/
 ```
 
-## 准备 payload
+## 推荐用法：外部 Profile 路径
 
-在源机器上准备一个 `payload` 文件夹：
+假设你把源机器的 VS Code 数据放在移动硬盘：
 
 ```text
-payload/
-  user-data/       # 通常来自 %APPDATA%\Code
-  extensions/      # 通常来自 %USERPROFILE%\.vscode\extensions
-  fonts/           # .ttf/.ttc/.otf 字体文件
+E:\VSCodeBeautyProfile\
+  user-data\       # 来自源机器 %APPDATA%\Code
+  extensions\      # 来自源机器 %USERPROFILE%\.vscode\extensions
 ```
 
-建议至少包含：
+在新机器上运行：
 
-- `payload/user-data/User/settings.json`
-- `payload/user-data/User/keybindings.json`，如果你有自定义快捷键
-- `payload/user-data/User/snippets`，如果你有代码片段
-- `payload/extensions`，如果你希望插件版本也跟源机器一致
-- `payload/fonts`，如果主题依赖 JetBrains Mono、HarmonyOS Sans SC、Inter 等字体
+```powershell
+.\scripts\Install-VSCodeBeautyOneClick.ps1 `
+  -UserDataPath "E:\VSCodeBeautyProfile\user-data" `
+  -ExtensionsPath "E:\VSCodeBeautyProfile\extensions"
+```
 
-## 一键美化
+脚本会自动使用仓库里的 `fonts/`，所以不需要把字体再塞进 Profile。
 
-把 `payload` 放在仓库根目录后，可以双击：
+如果你有额外字体目录：
+
+```powershell
+.\scripts\Install-VSCodeBeautyOneClick.ps1 `
+  -UserDataPath "E:\VSCodeBeautyProfile\user-data" `
+  -ExtensionsPath "E:\VSCodeBeautyProfile\extensions" `
+  -FontsPath "E:\MyFonts"
+```
+
+## 只安装公共美化基础
+
+没有外部 Profile 时也能运行。它会安装 VS Code、安装仓库字体、修补 workbench CSS、创建快捷方式：
+
+```powershell
+.\scripts\Install-VSCodeBeautyOneClick.ps1
+```
+
+双击也可以：
 
 ```bat
 scripts\Run-OneClick-Beauty.cmd
 ```
 
-也可以在 PowerShell 中运行：
+## 兼容旧 payload 格式
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-VSCodeBeautyOneClick.ps1 -PayloadPath .
+旧格式仍然支持，但不再推荐把它放进仓库目录：
+
+```text
+D:\VSCodeBeautySource\
+  user-data\
+  extensions\
+  fonts\
 ```
 
-常用参数：
+运行：
 
 ```powershell
-# 先备份并清理旧的 VS Code 用户数据、插件和字体，再恢复
-.\scripts\Install-VSCodeBeautyOneClick.ps1 -PayloadPath . -CleanFirst
+.\scripts\Install-VSCodeBeautyOneClick.ps1 -PayloadPath "D:\VSCodeBeautySource"
+```
 
-# 已经安装好 VS Code，只恢复美化内容
-.\scripts\Install-VSCodeBeautyOneClick.ps1 -PayloadPath . -SkipVSCodeInstall
+如果 `D:\VSCodeBeautySource\fonts` 存在，优先使用它；否则使用仓库内置 `fonts/`。
+
+## 常用参数
+
+```powershell
+# 先备份并清理旧的 VS Code 用户数据、插件和 VS Code 安装，再安装和恢复
+.\scripts\Install-VSCodeBeautyOneClick.ps1 -CleanFirst `
+  -UserDataPath "E:\VSCodeBeautyProfile\user-data" `
+  -ExtensionsPath "E:\VSCodeBeautyProfile\extensions"
+
+# 已经安装好 VS Code，只恢复配置、插件、字体和 CSS
+.\scripts\Install-VSCodeBeautyOneClick.ps1 -SkipVSCodeInstall `
+  -UserDataPath "E:\VSCodeBeautyProfile\user-data" `
+  -ExtensionsPath "E:\VSCodeBeautyProfile\extensions"
 
 # 只恢复配置和插件，不安装字体
-.\scripts\Install-VSCodeBeautyOneClick.ps1 -PayloadPath . -SkipFonts
+.\scripts\Install-VSCodeBeautyOneClick.ps1 -SkipFonts `
+  -UserDataPath "E:\VSCodeBeautyProfile\user-data" `
+  -ExtensionsPath "E:\VSCodeBeautyProfile\extensions"
 
 # 不修补 workbench CSS
-.\scripts\Install-VSCodeBeautyOneClick.ps1 -PayloadPath . -SkipWorkbenchCss
+.\scripts\Install-VSCodeBeautyOneClick.ps1 -SkipWorkbenchCss
 ```
 
 ## 本机实验流程
@@ -83,14 +133,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-VSCodeBeau
 如果你想模拟一台“新电脑”，可以按这个顺序测试：
 
 ```powershell
-# 谨慎：会清理当前用户的 VS Code 配置、插件和 payload 中同名字体
-.\scripts\Reset-VSCodeBeautyLab.ps1 -PayloadPath .\payload
+# 谨慎：会卸载 VS Code、清理当前用户 VS Code 配置和插件，并卸载仓库 fonts/ 中匹配的字体
+.\scripts\Reset-VSCodeBeautyLab.ps1
 
 # 重新安装最新版 VS Code User Installer
 .\scripts\Install-FreshVSCodeForLab.ps1
 
 # 跑一键美化
-.\scripts\Install-VSCodeBeautyOneClick.ps1 -PayloadPath . -CleanFirst
+.\scripts\Install-VSCodeBeautyOneClick.ps1 `
+  -UserDataPath "E:\VSCodeBeautyProfile\user-data" `
+  -ExtensionsPath "E:\VSCodeBeautyProfile\extensions"
 ```
 
 `Reset-VSCodeBeautyLab.ps1` 默认只处理当前用户可控范围。它不会自动去改 `C:\Windows\Fonts` 或 HKLM 字体注册表；如果要清理全局字体，请先确认风险再手动处理。
@@ -99,9 +151,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-VSCodeBeau
 
 - 检测并安装 VS Code User Installer
 - 备份或清理旧的 `%APPDATA%\Code`
-- 恢复 `payload/user-data`
-- 恢复 `%USERPROFILE%\.vscode\extensions`
-- 将 `payload/fonts` 安装到当前用户字体目录 `%LOCALAPPDATA%\Microsoft\Windows\Fonts`
+- 恢复指定的 VS Code 用户数据
+- 恢复指定的 `%USERPROFILE%\.vscode\extensions`
+- 将字体安装到当前用户字体目录 `%LOCALAPPDATA%\Microsoft\Windows\Fonts`
 - 写入 HKCU 字体注册表，并广播 `WM_FONTCHANGE`
 - 修补 VS Code `workbench.desktop.main.css`
 - 重新计算并写回 `product.json` 中对应 CSS 的 SHA256 校验和
@@ -111,7 +163,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-VSCodeBeau
 
 VS Code 更新后可能会覆盖 workbench CSS，更新完重新运行一键脚本即可。
 
-字体不要盲目写入 `C:\Windows\Fonts` 或 HKLM。当前脚本采用“当前用户安装”方案，更适合迁移和回滚，也不容易影响系统其它用户。
+字体安装采用“当前用户安装”方案，不默认写入 `C:\Windows\Fonts` 或 HKLM。这样更适合迁移和回滚，也不容易影响系统其它用户。
 
 更多细节见：
 
